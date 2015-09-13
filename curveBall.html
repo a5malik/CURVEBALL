@@ -1,0 +1,166 @@
+<html>
+<script id="vertex-shader" type="x-shader/x-vertex">
+
+attribute vec4 vPosition;
+attribute vec2 vTexCoord;
+attribute vec4 vNormal;
+attribute vec3 vTangent;
+
+varying vec3 pos, lPos;
+varying vec2 fTexCoord;
+varying vec3 N;
+
+varying vec3 L; /* light vector in texture-space coordinates */
+varying vec3 V; /* view vector in texture-space coordinates */
+
+uniform mat4 modelView;
+uniform mat4 projection;
+uniform mat4 cameraMove;
+uniform vec4 lightPos;
+uniform mat3 normalMatrix;
+
+void main() {
+	mat4 mvMatrix = cameraMove * modelView;
+    gl_Position = projection * mvMatrix * vPosition;
+	
+	// pos is vertex position in eye coordinates		
+	pos = (mvMatrix * vPosition).xyz;
+	
+	lPos = (mvMatrix * lightPos).xyz;
+
+	//vec3 No = normalize(normalMatrix * vNormal.xyz);
+    //vec3 T  = normalize(normalMatrix * vTangent);
+	vec3 No = vNormal.xyz;
+	vec3 T  = vTangent;
+    vec3 B = cross(No, T);
+	
+	L.x = dot(T, lPos-pos);
+    L.y = dot(B, lPos-pos);
+    L.z = dot(No, lPos-pos);
+	L = normalize(L);
+	
+	V.x = dot(T, -pos);
+    V.y = dot(B, -pos);
+    V.z = dot(No, -pos);
+
+    V = normalize(V);
+
+	// Transform vertex normal into eye coordinates, 
+	// since there is only translation, we can skip 
+	// the multiplication with model view matrix
+	N = (vNormal.xyz);
+
+	fTexCoord = vTexCoord;
+}
+
+</script>
+
+<script id="frag-shader" type="x-shader/x-fragment">
+
+precision mediump float;
+
+varying vec3 pos, lPos;
+varying vec2 fTexCoord;
+varying vec3 N;
+varying vec3 L;
+varying vec3 V;
+uniform sampler2D tsampler;
+uniform sampler2D texMap;
+uniform int texIndex;
+uniform vec4 ambientProduct, diffuseProduct, specularProduct;
+uniform float shininess;
+uniform float opacity;
+uniform int motion;
+void
+main()
+{	
+	if (texIndex == 1) {
+	
+		vec4 No = texture2D(texMap, fTexCoord);
+		vec3 NN =  normalize(2.0*No.xyz-1.0);
+		vec3 LL = normalize(L);
+		vec3 VV = normalize(V);
+		float Kd = max(dot(NN, LL), 0.0);
+		//gl_FragColor = vec4(Kd*diffuseProduct.xyz, 1.0);
+		
+		 //point source		
+		vec3 Li = normalize(lPos - pos);
+
+		// Because the eye point is at the origin
+		// the vector from the vertex position to the eye is			
+		vec3 E = -normalize(pos);
+		
+		// halfway vector		
+		vec3 H = normalize(Li + E);
+		vec4 ambient = ambientProduct;
+		
+		
+
+		//float Kd = max(dot(L, N), 0.0);
+		vec4 diffuse = Kd * diffuseProduct;
+
+		float Ks = pow(max(dot(N, H), 0.0), shininess);
+		vec4 specular = Ks * specularProduct;
+		
+		if(dot(Li, N) < 0.0) specular = vec4(0.0, 0.0, 0.0, 1.0);
+		
+		vec4 fColor = ambient + diffuse + specular;
+		fColor.a = 1.0;
+		
+		gl_FragColor = fColor * texture2D(tsampler, fTexCoord);
+	}
+	else
+	{
+		gl_FragColor = texture2D(tsampler, fTexCoord);
+		if(motion == 1)
+		{
+		 gl_FragColor.a = opacity*gl_FragColor.a;
+		}
+	}
+}
+
+</script>
+
+<script type="text/javascript" src="webgl-utils.js"></script>
+<script type="text/javascript" src="initShaders.js"></script>
+<script type="text/javascript" src="MV.js"></script>
+<script type="text/javascript" src="curveBall.js"></script>
+<script type="text/javascript" src="paddle.js"></script>
+<script type="text/javascript" src="walls.js"></script>
+<script type="text/javascript" src="ball.js"></script>
+<script type="text/javascript" src="game.js"></script>
+<script type="text/javascript" src="text.js"></script>
+
+<style>
+.container {
+    position: relative;
+}
+#overlay {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    font-family: monospace;
+    padding: 1em;
+}
+</style>
+
+<body>
+
+<div class="container">
+	<canvas id="tex-canvas" width="800" height="540"  style="position:absolute; z-index: 0" >Sorry... Your browser does not support the HTML5 canvas element :-(</canvas>
+	<div id="overlay" hidden>
+		<div hidden>Player Lives: <span id="playerScore"></span></div>
+		<div hidden>AI Lives: <span id="aiScore"></span></div>
+		<div hidden>Curve Scores: <span id="curveScore"></span></div>
+		<div hidden>Level: <span id="gameLevel"></span></div>
+		<div hidden>Highest: <span id="highScore"></span></div>
+
+	</div>
+</div>
+
+<canvas id="welcome" width = "800" height = "540" style="position:absolute; z-index: 2">I'm sorry your browser does not support the HTML5 canvas element.</canvas>
+<canvas id="hud" width = "800" height = "540" style="position:absolute; z-index: 1">I'm sorry your browser does not support the HTML5 canvas element.</canvas>
+</body>
+</html>
